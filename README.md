@@ -1,92 +1,47 @@
 # devops-netology
 
-# Домашнее задание к занятию «2.4. Инструменты Git»
+# Домашнее задание к занятию «3.1. Работа в терминале, лекция 1»
 
-1. 
-команда: 
+1. Oracle VirtualBox установлен.
+2. Hashicorp Vagrant установлен.
+3. Терминал подготовлен.
+4. В VirtualBox с помощью Vagrant запущен Ubuntu 20.04.
+5. Ознакомился.
+По умолчанию выделены ресурсы:
 
-git show aefea --pretty=oneline
+Оперативная память: 1024 Мб
 
-ответ: 
+Процессоры: 2
 
-aefead2207ef7e2aa5dc81a34aedf0cad4c32545 Update CHANGELOG.md
+Диск: 64 Гб
 
-2. 
-команда:
+Видеопамять: 4 Гб
+6. Добавление оперативной памяти или ресурсов процессора ВМ: нужно добавить в файл Vagrantfile строки:
 
-git show 85024d3
+config.vm.provider "virtualbox" do |v|
 
-ответ: 
+  v.memory = 2048
 
-v0.12.23
+  v.cpus = 4
 
-3. 
-команды:
+end
 
-git show b8d720^   
-git show b8d720^2
+7. Сделано.
+8. Ознакомился, почитал.
 
-ответ: 
+Длину журнала history можно задать переменными HISTSIZE (количество команд), строка 862, или HISTFILESIZE (максимальное строк), строка 846.
+Директива ignoreboth заменяет 2 директивы: ignorespace (не добавлять начинающиеся с пробела команды) и ignoredups (не добавлять уже включенные в историю команды).
+9. В циклах для задания элементов цикла (строка 160), также так можно одной командой циклически создавать файлы с шаблонными названиями; для указания списков команд (строка 230), выполняемых в текущем окружении; для описания функций.
+10. 100000 файлов можно создать командой touch file{1..100000}.
+300000 таким же образом создать не удается в силу ограничений команды touch.
+11. Возвращает статус 1 или 0 в зависимости от оценки условия, содержащегося в двойных квадратных скобках. 
+В данном случае: 1 - если каталог /tmp существует, иначе - 0.
+12. 
+mkdir /tmp/new_path_directory/
 
-2 родителя
+cp /bin/bash /tmp/new_path_directory/
 
-56cd7859e05c36c06b56d013b55a252d0bb7e158
-
-9ea88f22fc6269854151c571162c5bcf958bee2b
-
-4. 
-команда:
-
-git log v0.12.23..v0.12.24^ --pretty=oneline
-
-ответ:
-
-b14b74c4939dcab573326f4e3ee2a62e23e12f89 [Website] vmc provider links
-3f235065b9347a758efadc92295b540ee0a5e26e Update CHANGELOG.md
-6ae64e247b332925b872447e9ce869657281c2bf registry: Fix panic when server is unreachable
-5c619ca1baf2e21a155fcdb4c264cc9e24a2a353 website: Remove links to the getting started guide's old location
-06275647e2b53d97d4f0a19a0fec11f6d69820b5 Update CHANGELOG.md
-d5f9411f5108260320064349b757f55c09bc4b80 command: Fix bug when using terraform login on Windows
-4b6d06cc5dcb78af637bbb19c198faff37a066ed Update CHANGELOG.md
-dd01a35078f040ca984cdd349f18d0b67e486c35 Update CHANGELOG.md
-225466bc3e5f35baa5d07197bbc079345b77525e Cleanup after v0.12.23 release
-
-5.
-команда:
-
-git log -S "func providerSource("
-
-ответ:
-
-8c928e83589d90a031f811fae52a81be7153e82f
-
-6.
-команды:
-
-git log -S "func globalPluginDirs("
-
-git show 8364383c #используется hash, полученный в предыдущей команде, для поиска файла plugins.go, содержащего функцию
-
-git log -L :globalPluginDirs:plugins.go
-
-ответ:
-
-78b12205587fe839f10d946ea3fdc06719decb05
-
-52dbf94834cb970b510f2fba853a5b49ad9b1a46
-
-41ab0aef7a0fe030e84018973a64135b11abcd70
-
-66ebff90cdfaa6938f26f908c7ebad8d547fea17
-
-8364383c359a6b738a436d1b7745ccdce178df47
-
-7.
-команда:
-
-git log -S "func synchronizedWriters("
-
-ответ:
-
-Martin Atkins - автор самого раннего коммита
-
+PATH=/tmp/new_path_directory/:$PATH
+13. batch используется для запуска команд, когда загрузка системы низкая,
+at используется для запуска команд в указанное время
+14. Сделано
