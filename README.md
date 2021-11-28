@@ -86,3 +86,96 @@ Part of the utsname information is also accessible  via  /proc/sys/kernel/{ostyp
 
 ### 9. Используя -o stat для ps, определите, какой наиболее часто встречающийся статус у процессов в системе. В man ps ознакомьтесь (/PROCESS STATE CODES) что значат дополнительные к основной заглавной буквы статуса процессов. Его можно не учитывать при расчете (считать S, Ss или Ssl равнозначными).
 Наиболее часто встречающийся статус - `S`: прерываемый сон (ожидает события для завершени), а также - `I`: неактивный процесс ядра. Дополнительные (к основной) буквы статуса процесса: < - процесс с высоким приоритетом, N - процесс с низким приоритетом, s - процесс инициировавший сессию. 
+
+# 3.4. Операционные системы, лекция 2
+### 1. На лекции мы познакомились с node_exporter. В демонстрации его исполняемый файл запускался в background. Этого достаточно для демо, но не для настоящей production-системы, где процессы должны находиться под внешним управлением. Используя знания из лекции по systemd, создайте самостоятельно простой unit-файл для node_exporter.
+
+Unit-файл /etc/systemd/system/nex.service:
+```TEXT
+[Unit]
+Description=node_exporter
+
+[Service]
+EnvironmentFile=/opt/node_exporter-1.3.0.linux-amd64/nex.env
+ExecStart=/opt/node_exporter-1.3.0.linux-amd64/node_exporter $EXTRA_OPTS
+
+[Install]
+WantedBy=multi-user.target
+```
+Файл для добавления опций /opt/node_exporter-1.3.0.linux-amd64/nex_env:
+```TEXT
+EXTRA_OPTS="--log.level=info"
+```
+Запущены команды:
+```TEXT
+systemctl daemon-reload -применение настроек
+systemctl enable nodex - добавление в автозагрузку
+systemctl start nodex - запуск
+systemctl status nodex - просмотр статуса
+systemctl stop nodex - остановка
+```
+Проверено, что с помощью systemctl процесс корректно стартует, завершается, а после перезагрузки автоматически поднимается.
+
+### 2. Ознакомьтесь с опциями node_exporter и выводом /metrics по-умолчанию. Приведите несколько опций, которые вы бы выбрали для базового мониторинга хоста по CPU, памяти, диску и сети.
+CPU:
+```TEXT
+node_cpu_seconds_total{cpu="0",mode="iowait"} 135.71
+node_cpu_seconds_total{cpu="0",mode="system"} 49.81
+node_cpu_seconds_total{cpu="0",mode="user"} 24.84
+node_cpu_seconds_total{cpu="1",mode="iowait"} 141.63
+node_cpu_seconds_total{cpu="1",mode="system"} 63.78
+node_cpu_seconds_total{cpu="1",mode="user"} 26.47
+```
+Память:
+```TEXT
+node_memory_MemAvailable_bytes 7.1888896e+08
+node_memory_MemFree_bytes 1.92479232e+08
+node_memory_MemTotal_bytes 1.028694016e+09
+node_memory_SwapFree_bytes 1.027600384e+09
+```
+Диск:
+```TEXT
+node_disk_io_now{device="sda"} 0
+node_disk_io_time_seconds_total{device="sda"} 262.75600000000003
+node_disk_io_time_weighted_seconds_total{device="sda"} 1083.036
+node_disk_read_bytes_total{device="sda"} 3.45965568e+08
+```
+Сеть:
+```TEXT
+node_network_receive_bytes_total{device="eth0"} 4.2784829e+07
+node_network_receive_drop_total{device="eth0"} 0
+node_network_transmit_bytes_total{device="eth0"} 1.592844e+06
+node_network_transmit_drop_total{device="eth0"} 0
+```
+### 3. Установите в свою виртуальную машину Netdata. Воспользуйтесь готовыми пакетами для установки (sudo apt install -y netdata). 
+Netdata установлена, в файлы внесены изменения, порт проброшен, vagrant перезагружен. С метриками ознакомился.
+
+### 4. Можно ли по выводу dmesg понять, осознает ли ОС, что загружена не на настоящем оборудовании, а на системе виртуализации?
+Да, можно. Вывод `dmesg`:
+```bash
+[    0.000000] DMI: innotek GmbH VirtualBox/VirtualBox, BIOS VirtualBox 12/01/2006
+[    0.000000] Hypervisor detected: KVM
+```
+### 5. Как настроен sysctl fs.nr_open на системе по-умолчанию? Узнайте, что означает этот параметр. Какой другой существующий лимит не позволит достичь такого числа (ulimit --help)?
+Для получения `fs.nr_open` нужно запустить команду: `sysctl -n fs.nr_open`. Значение показывает максимальное количество открытых файлов на процесс,
+по умолчанию - 1048576. Это значение не позволит достичь другой лимит: `open files` из вывода команды: `ulimit -a`, значение по умолчанию у
+которого - 1024.
+
+### 6. Запустите любой долгоживущий процесс (не ls, который отработает мгновенно, а, например, sleep 1h) в отдельном неймспейсе процессов; покажите, что ваш процесс работает под PID 1 через nsenter.
+```bash
+root@vagrant:~# ps -e | grep sleep
+   1550 pts/0    00:00:00 sleep
+root@vagrant:~# nsenter --target 1550 --pid --mount
+root@vagrant:/# ps
+    PID TTY          TIME CMD
+      1 pts/0    00:00:00 sleep
+      2 pts/0    00:00:00 bash
+```
+### 7. Найдите информацию о том, что такое :(){ :|:& };:. Запустите эту команду в своей виртуальной машине Vagrant с Ubuntu 20.04 (это важно, поведение в других ОС не проверялось). Некоторое время все будет "плохо", после чего (минуты) – ОС должна стабилизироваться. Вызов dmesg расскажет, какой механизм помог автоматической стабилизации. Как настроен этот механизм по-умолчанию, и как изменить число процессов, которое можно создать в сессии?
+:(){ :|:& };: - форкбомба. 
+Это функция, которая рекурсивно запускает саму себя и результат отправляет через пайп себе на вход для запуска в бэкграунде. Данный процесс упирается в ограничение `ulimit -u` (количество процессов на пользователя).
+Сообщение в `dmesg`:
+```bash
+[ 1934.590198] cgroup: fork rejected by pids controller in /user.slice/user-1000.slice/session-3.scope
+```
+Количество процессов на пользователя можно поменять командой  `ulimit -u N`, `N`  - новое значение.
