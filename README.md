@@ -371,7 +371,7 @@ Connection closed by foreign host.
 $ whois 188.255.xx.xx | grep descr
 descr:          Rostelecom
 ...
-$ whois 109.252.xx.xx | grep origin
+$ whois 188.255.xx.xx | grep origin
 origin:         AS42610
 ```
 ### 5. Через какие сети проходит пакет, отправленный с вашего компьютера на адрес 8.8.8.8? Через какие AS? Воспользуйтесь утилитой traceroute
