@@ -491,3 +491,94 @@ Network			- 10.10.10.56     - 10.10.10.63
 Проверка ARP таблицы в Linux: `ip neigh show`, `ip n`.
 Очистка ARP кеша полностью в Linux: `ip neigh flush`.
 Удаление из ARP таблицы только одного нужного IP в Linux: `ip neigh del dev <INTERFACE> <IP>`.
+
+# 3.8. Компьютерные сети, лекция 3
+### 1. Подключитесь к публичному маршрутизатору в интернет. Найдите маршрут к вашему публичному IP: ...
+```bash
+route-views>show ip route 188.255.хх.хх
+Routing entry for 188.255.0.0/17
+  Known via "bgp 6447", distance 20, metric 0
+  Tag 852, type external
+  Last update from 154.11.12.212 1w2d ago
+  Routing Descriptor Blocks:
+  * 154.11.12.212, from 154.11.12.212, 1w2d ago
+      Route metric is 0, traffic share count is 1
+      AS Hops 3
+      Route tag 852
+      MPLS label: none
+route-views>show bgp 188.255.хх.хх
+BGP routing table entry for 188.255.0.0/17, version 1388581119
+Paths: (23 available, best #14, table default)
+  Not advertised to any peer
+  Refresh Epoch 1
+  2497 12389 42610
+    202.232.0.2 from 202.232.0.2 (58.138.96.254)
+      Origin IGP, localpref 100, valid, external
+      path 7FE14AE95630 RPKI State not found
+      rx pathid: 0, tx pathid: 0
+  Refresh Epoch 1
+  20912 3257 1299 42610
+    212.66.96.126 from 212.66.96.126 (212.66.96.126)
+      Origin incomplete, localpref 100, valid, external
+      Community: 3257:8101 3257:30055 3257:50001 3257:53900 3257:53902 20912:65004
+      path 7FE0B48CF450 RPKI State not found
+      rx pathid: 0, tx pathid: 0
+  Refresh Epoch 1
+  4901 6079 1299 42610
+    162.250.137.254 from 162.250.137.254 (162.250.137.254)
+      Origin incomplete, localpref 100, valid, external
+      Community: 65000:10100 65000:10300 65000:10400
+      path 7FE0BDA16080 RPKI State not found
+      rx pathid: 0, tx pathid: 0
+```
+### 2. Создайте dummy0 интерфейс в Ubuntu. Добавьте несколько статических маршрутов. Проверьте таблицу маршрутизации.
+Создание dummy0 интерфейса:
+```bash
+vagrant@vagrant:~$ sudo ip link add dummy0 type dummy
+vagrant@vagrant:~$ ip -br l
+lo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP>
+eth0             UP             08:00:27:73:60:cf <BROADCAST,MULTICAST,UP,LOWER_UP>
+dummy0           DOWN           aa:cb:d8:1d:24:90 <BROADCAST,NOARP>
+```
+Добавление статических маршрутов:
+```bash
+# Добавление маршрута через шлюз: 
+vagrant@vagrant:~$ sudo ip route add 192.168.10.0/24 via 10.0.2.15
+# Добавление маршрута через интерфейс: 
+vagrant@vagrant:~$ sudo ip route add 192.168.11.0/24 dev eth0
+# Добавление маршрута через интерфейс с метрикой:
+vagrant@vagrant:~$ sudo ip route add 192.168.12.0/24 dev eth0 metric 100
+```
+Проверка таблицы маршрутизации:
+```bash
+vagrant@vagrant:~$ ip r
+default via 10.0.2.2 dev eth0 proto dhcp src 10.0.2.15 metric 100
+10.0.2.0/24 dev eth0 proto kernel scope link src 10.0.2.15
+10.0.2.2 dev eth0 proto dhcp scope link src 10.0.2.15 metric 100
+192.168.10.0/24 via 10.0.2.15 dev eth0
+192.168.11.0/24 dev eth0 scope link
+192.168.12.0/24 dev eth0 scope link metric 100 
+```
+### 3. Проверьте открытые TCP порты в Ubuntu, какие протоколы и приложения используют эти порты? Приведите несколько примеров.
+```bash
+vagrant@vagrant:~$ sudo ss -tnlp
+State  Recv-Q Send-Q   Local Address:Port   Peer Address:Port Process
+LISTEN 0      4096           0.0.0.0:111         0.0.0.0:*     users:(("rpcbind",pid=610,fd=4),("systemd",pid=1,fd=35))
+LISTEN 0      4096     127.0.0.53%lo:53          0.0.0.0:*     users:(("systemd-resolve",pid=611,fd=13))
+LISTEN 0      128            0.0.0.0:22          0.0.0.0:*     users:(("sshd",pid=1035,fd=3))
+LISTEN 0      4096              [::]:111            [::]:*     users:(("rpcbind",pid=610,fd=6),("systemd",pid=1,fd=37))
+LISTEN 0      128               [::]:22             [::]:*     users:(("sshd",pid=1035,fd=4))
+```
+Порт 53 - DNS, порт 22 - SSH, порт 111 - SUNRPC
+### 4. Проверьте используемые UDP сокеты в Ubuntu, какие протоколы и приложения используют эти порты?
+```bash
+vagrant@vagrant:~$ sudo ss -unap
+State  Recv-Q Send-Q   Local Address:Port   Peer Address:Port Process
+UNCONN 0      0        127.0.0.53%lo:53          0.0.0.0:*     users:(("systemd-resolve",pid=611,fd=12))
+UNCONN 0      0       10.0.2.15%eth0:68          0.0.0.0:*     users:(("systemd-network",pid=417,fd=19))
+UNCONN 0      0              0.0.0.0:111         0.0.0.0:*     users:(("rpcbind",pid=610,fd=5),("systemd",pid=1,fd=36))
+UNCONN 0      0                 [::]:111            [::]:*     users:(("rpcbind",pid=610,fd=7),("systemd",pid=1,fd=38))
+```
+Порт 53 - DNS, порт 68 - DHCP
+### 5. Используя diagrams.net, создайте L3 диаграмму вашей домашней сети или любой другой сети, с которой вы работали.
+![image](screenshots/netdiag.png)
