@@ -582,3 +582,121 @@ UNCONN 0      0                 [::]:111            [::]:*     users:(("rpcbind"
 Порт 53 - DNS, порт 68 - DHCP
 ### 5. Используя diagrams.net, создайте L3 диаграмму вашей домашней сети или любой другой сети, с которой вы работали.
 ![image](screenshots/netdiag.png)
+
+# 3.9. Элементы безопасности информационных систем.
+### 1. Установите Bitwarden плагин для браузера. Зарегестрируйтесь и сохраните несколько паролей.
+![](screenshots/img3.9.1.png)
+### 2. Установите Google authenticator на мобильный телефон. Настройте вход в Bitwarden акаунт через Google authenticator OTP.
+![](screenshots/img3.9.2.png)
+### 3. Установите apache2, сгенерируйте самоподписанный сертификат, настройте тестовый сайт для работы по HTTPS.
+Сделано в соответствии с презентацией:
+```shell
+$ sudo nano /etc/apache2/sites-enabled/hw.conf
+VirtualHost *:443>
+  ServerName 127.0.0.1
+  DocumentRoot /var/www/hw.com
+  SSLEngine on
+  SSLCertificateFile /etc/ssl/certs/apache-selfsigned.crt
+  SSLCertificateKeyFile /etc/ssl/private/apache-selfsigned.key
+</VirtualHost>
+
+$ openssl x509 -text -noout -in  /etc/ssl/certs/apache-selfsigned.crt | grep Subject
+Subject: C = RU, ST = Moscow, L = Moscow, O = Company Name, OU = Org, CN = www.example.com
+...
+
+$ cat /var/www/hw.com/index.html
+<h1>Homework for netology</h1>
+```
+![](screenshots/img3.9.3.png)
+![](screenshots/img3.9.4.png)
+### 4. Проверьте на TLS уязвимости произвольный сайт в интернете.
+Проверка https://mail.ru/
+```shell
+$ ./testssl.sh -U --sneaky https://mail.ru/
+ Testing vulnerabilities 
+
+ Heartbleed (CVE-2014-0160)                not vulnerable (OK), timed out
+ CCS (CVE-2014-0224)                       not vulnerable (OK)
+ Ticketbleed (CVE-2016-9244), experiment.  not vulnerable (OK)
+ ROBOT                                     not vulnerable (OK)
+ Secure Renegotiation (RFC 5746)           supported (OK)
+ Secure Client-Initiated Renegotiation     not vulnerable (OK)
+ CRIME, TLS (CVE-2012-4929)                not vulnerable (OK)
+ BREACH (CVE-2013-3587)                    potentially NOT ok, "gzip" HTTP compression detected. - only supplied "/" tested
+                                           Can be ignored for static pages or if no secrets in the page
+ POODLE, SSL (CVE-2014-3566)               not vulnerable (OK)
+ TLS_FALLBACK_SCSV (RFC 7507)              Downgrade attack prevention supported (OK)
+ SWEET32 (CVE-2016-2183, CVE-2016-6329)    VULNERABLE, uses 64 bit block ciphers
+ FREAK (CVE-2015-0204)                     not vulnerable (OK)
+ DROWN (CVE-2016-0800, CVE-2016-0703)      not vulnerable on this host and port (OK)
+                                           make sure you don't use this certificate elsewhere with SSLv2 enabled services
+                                           https://censys.io/ipv4?q=73CE7337E1FE4D5E6CBAB304B5E401B21C006CCEC612092AD83209BBABEED18B could help you to find out
+ LOGJAM (CVE-2015-4000), experimental      not vulnerable (OK): no DH EXPORT ciphers, no common prime detected
+ BEAST (CVE-2011-3389)                     TLS1: ECDHE-RSA-AES256-SHA ECDHE-RSA-AES128-SHA ECDHE-RSA-DES-CBC3-SHA DHE-RSA-AES256-SHA DHE-RSA-AES128-SHA EDH-RSA-DES-CBC3-SHA AES256-SHA AES128-SHA
+                                                 DES-CBC3-SHA 
+                                           VULNERABLE -- but also supports higher protocols  TLSv1.1 TLSv1.2 (likely mitigated)
+ LUCKY13 (CVE-2013-0169), experimental     potentially VULNERABLE, uses cipher block chaining (CBC) ciphers with TLS. Check patches
+ Winshock (CVE-2014-6321), experimental    not vulnerable (OK) - CAMELLIA or ECDHE_RSA GCM ciphers found
+ RC4 (CVE-2013-2566, CVE-2015-2808)        no RC4 ciphers detected (OK)
+
+```
+### 5. Установите на Ubuntu ssh сервер, сгенерируйте новый приватный ключ. Скопируйте свой публичный ключ на другой сервер. Подключитесь к серверу по SSH-ключу.
+Установка ssh-сервера, генерация ключей:
+```bash
+~# apt install openssh-server
+~# systemctl start sshd.service
+~# ssh-keygen
+Generating public/private rsa key pair.
+Enter file in which to save the key (/root/.ssh/id_rsa): /root/.ssh/hw.rsa
+Created directory '/root/.ssh'.
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /root/.ssh/hw.rsa
+Your public key has been saved in /root/.ssh/hw.rsa.pub
+The key fingerprint is:
+SHA256:0ndwT9DLypg/HNt1HXPojXgZXzb62fPZOdJIhY7qhlQ root@vagrant
+The key's randomart image is:
++---[RSA 3072]----+
+|            ..   |
+|             ..  |
+|          . ..oo |
+|       . E o +==+|
+|      . S .++++BB|
+|       o .oo=+= *|
+|      . . .o.=+.+|
+|       . o  =o.*=|
+|        o.   ..o*|
++----[SHA256]-----+
+```
+Копирование ключа на другой сервер. Подключение к серверу по SSH-ключу:
+```bash
+~# ssh-copy-id -i .ssh/hw_rsa.pub root@192.168.0.5
+~# ssh -i .ssh/hw_rsa root@192.168.0.5
+```
+### 6. Переименуйте файлы ключей из задания 5. Настройте файл конфигурации SSH клиента, так чтобы вход на удаленный сервер осуществлялся по имени сервера.
+Переименование файлов ключей:
+```bash
+~# mv .ssh/hw_rsa .ssh/new_hw_rsa
+~# mv .ssh/hw_rsa.pub .ssh/new_hw_rsa.pub
+```
+Настройка файла конфигурации:
+```bash
+~# cat .ssh/config
+Host nest02
+     HostName 192.168.0.5
+     User root
+     IdentityFile /root/.ssh/new_hw_rsa
+```
+Подключение:
+```bash
+~# ssh nest02
+```
+### 7. Соберите дамп трафика утилитой tcpdump в формате pcap, 100 пакетов. Откройте файл pcap в Wireshark.
+```bash
+~# tcpdump -c 100 -w dump_file.pcap
+tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+100 packets captured
+104 packets received by filter
+0 packets dropped by kernel
+```
+![](screenshots/img3.9.5.png)
