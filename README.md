@@ -349,3 +349,236 @@ Redis - key-value хранилище, имеющее механизм Pub/Sub. �
 Минусы: Ограничение хранилища - все данные должны поместиться в оперативной памяти. Redis предлагает
 только базовую безопасность, нет механизма ролей. Отсутствует язык запросов (типа SQL) - теряется гибкость. 
 ```
+
+# 6.2. SQL
+### Задача 1
+docker-compose манифест:
+```yaml
+version: "3.1"
+services:
+  postgres:
+    image: postgres:12
+    environment:
+      POSTGRES_DB: "netology"
+      POSTGRES_USER: "netology"
+      POSTGRES_PASSWORD: "net_123"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    container_name: netology_psql
+    volumes:
+      - ./backup:/backup
+      - .:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+```
+Запускаем и заходим в БД
+```bash
+docker-compose up -d
+docker exec -it netology_psql psql -U netology -W netology
+```
+### Задача 2
+Cоздайте пользователя test-admin-user и БД test_db.
+```
+CREATE DATABASE test_db;
+CREATE USER "test-admin-user" WITH PASSWORD 'net_123';
+```
+В БД test_db создайте таблицу orders и clients.
+```
+CREATE TABLE orders (id SERIAL PRIMARY KEY, name VARCHAR(255), price INT);
+CREATE TABLE clients (id SERIAL PRIMARY KEY, last_name VARCHAR(30), country VARCHAR(30), 
+                      order_id INT, FOREIGN KEY (order_id) REFERENCES orders (id));
+CREATE INDEX index_country ON clients (country);
+```
+Предоставьте привилегии на все операции пользователю test-admin-user на таблицы БД test_db.
+```
+GRANT CONNECT ON DATABASE test_db to "test-admin-user";
+GRANT ALL ON ALL TABLES IN SCHEMA public to "test-admin-user";
+```
+Создайте пользователя test-simple-user.
+```
+CREATE USER "test-simple-user";
+```
+Предоставьте пользователю test-simple-user права на SELECT/INSERT/UPDATE/DELETE данных таблиц БД test_db.
+```
+GRANT CONNECT ON DATABASE test_db to "test-simple-user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public to "test-simple-user";
+```
+Итоговый список БД после выполнения пунктов выше:
+```
+netology=# \l
+                                     List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |       Access privileges
+-----------+----------+----------+------------+------------+-------------------------------
+ netology  | netology | UTF8     | en_US.utf8 | en_US.utf8 |
+ postgres  | netology | UTF8     | en_US.utf8 | en_US.utf8 |
+ template0 | netology | UTF8     | en_US.utf8 | en_US.utf8 | =c/netology                  +
+           |          |          |            |            | netology=CTc/netology
+ template1 | netology | UTF8     | en_US.utf8 | en_US.utf8 | =c/netology                  +
+           |          |          |            |            | netology=CTc/netology
+ test_db   | netology | UTF8     | en_US.utf8 | en_US.utf8 | =Tc/netology                 +
+           |          |          |            |            | netology=CTc/netology        +
+           |          |          |            |            | "test-admin-user"=c/netology +
+           |          |          |            |            | "test-simple-user"=c/netology
+(5 rows)
+```
+Описание таблиц (describe):
+```
+netology-# \d orders
+                                    Table "public.orders"
+ Column |          Type          | Collation | Nullable |              Default
+--------+------------------------+-----------+----------+------------------------------------
+ id     | integer                |           | not null | nextval('orders_id_seq'::regclass)
+ name   | character varying(255) |           |          |
+ price  | integer                |           |          |
+Indexes:
+    "orders_pkey" PRIMARY KEY, btree (id)
+Referenced by:
+    TABLE "clients" CONSTRAINT "clients_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id)
+```
+```
+netology-# \d clients
+                                     Table "public.clients"
+  Column   |         Type          | Collation | Nullable |               Default
+-----------+-----------------------+-----------+----------+-------------------------------------
+ id        | integer               |           | not null | nextval('clients_id_seq'::regclass)
+ last_name | character varying(30) |           |          |
+ country   | character varying(30) |           |          |
+ order_id  | integer               |           |          |
+Indexes:
+    "clients_pkey" PRIMARY KEY, btree (id)
+    "index_country" btree (country)
+Foreign-key constraints:
+    "clients_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id)
+```
+SQL-запрос для выдачи списка пользователей с правами над таблицами test_db:
+```
+SELECT grantee, table_name, privilege_type FROM information_schema.table_privileges 
+WHERE grantee LIKE 'te%';
+```
+Список пользователей с правами над таблицами test_db:
+```
+netology=# SELECT grantee, table_name, privilege_type FROM information_schema.table_privileges
+WHERE grantee LIKE 'te%';
+     grantee      | table_name | privilege_type
+------------------+------------+----------------
+ test-admin-user  | orders     | INSERT
+ test-admin-user  | orders     | SELECT
+ test-admin-user  | orders     | UPDATE
+ test-admin-user  | orders     | DELETE
+ test-admin-user  | orders     | TRUNCATE
+ test-admin-user  | orders     | REFERENCES
+ test-admin-user  | orders     | TRIGGER
+ test-admin-user  | clients    | INSERT
+ test-admin-user  | clients    | SELECT
+ test-admin-user  | clients    | UPDATE
+ test-admin-user  | clients    | DELETE
+ test-admin-user  | clients    | TRUNCATE
+ test-admin-user  | clients    | REFERENCES
+ test-admin-user  | clients    | TRIGGER
+ test-simple-user | orders     | INSERT
+ test-simple-user | orders     | SELECT
+ test-simple-user | orders     | UPDATE
+ test-simple-user | orders     | DELETE
+ test-simple-user | clients    | INSERT
+ test-simple-user | clients    | SELECT
+ test-simple-user | clients    | UPDATE
+ test-simple-user | clients    | DELETE
+(22 rows)
+```
+### Задача 3
+Используя SQL синтаксис - наполните таблицы следующими тестовыми данными:
+```
+INSERT INTO orders (name, price) VALUES ('Шоколад', 10), ('Принтер', 3000), 
+('Книга', 500), ('Монитор', 7000), ('Гитара', 4000);
+```
+```
+netology=# select * FROM orders;
+ id |  name   | price
+----+---------+-------
+  1 | Шоколад |    10
+  2 | Принтер |  3000
+  3 | Книга   |   500
+  4 | Монитор |  7000
+  5 | Гитара  |  4000
+(5 rows)
+```
+```
+INSERT INTO clients (last_name, country) VALUES ('Иванов Иван Иванович', 'USA'), 
+('Петров Петр Петрович', 'Canada'), ('Иоганн Себастьян Бах', 'Japan'), 
+('Ронни Джеймс Дио', 'Russia'), ('Ritchie Blackmore', 'Russia');
+```
+```
+netology=# select * from clients;
+ id |      last_name       | country | order_id
+----+----------------------+---------+----------
+  1 | Иванов Иван Иванович | USA     |
+  2 | Петров Петр Петрович | Canada  |
+  3 | Иоганн Себастьян Бах | Japan   |
+  4 | Ронни Джеймс Дио     | Russia  |
+  5 | Ritchie Blackmore    | Russia  |
+(5 rows)
+```
+Вычислите количество записей для каждой таблицы:
+```
+netology=# select count(*) from orders;
+ count
+-------
+     5
+(1 row)
+
+netology=# select count(*) from clients;
+ count
+-------
+     5
+(1 row)
+```
+### Задача 4
+
+Часть пользователей из таблицы clients решили оформить заказы из таблицы orders.
+Используя foreign keys свяжите записи из таблиц, согласно таблице.
+
+Приведите SQL-запросы для выполнения данных операций.
+```
+UPDATE clients SET order_id = (SELECT id FROM orders WHERE name = 'Книга') 
+WHERE last_name = 'Иванов Иван Иванович';
+UPDATE clients SET order_id = (SELECT id FROM orders WHERE name = 'Монитор') 
+WHERE last_name = 'Петров Петр Петрович';
+UPDATE clients SET order_id = (SELECT id FROM orders WHERE name = 'Гитара') 
+WHERE last_name = 'Иоганн Себастьян Бах';
+```
+Приведите SQL-запрос для выдачи всех пользователей, которые совершили заказ, а также вывод данного запроса.
+```
+netology=# SELECT clients.id, clients.last_name, orders.name FROM clients INNER JOIN orders ON orders.id = clients.order_id;
+ id |      last_name       |  name
+----+----------------------+---------
+  1 | Иванов Иван Иванович | Книга
+  2 | Петров Петр Петрович | Монитор
+  3 | Иоганн Себастьян Бах | Гитара
+(3 rows)
+```
+### Задача 5
+Получение полной информации по выполнению запроса выдачи всех пользователей из задачи 4.
+```
+netology=# EXPLAIN SELECT clients.id, clients.last_name, orders.name FROM clients INNER JOIN orders ON orders.id = clients.order_id;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Hash Join  (cost=13.15..28.47 rows=420 width=598)
+   Hash Cond: (clients.order_id = orders.id)
+   ->  Seq Scan on clients  (cost=0.00..14.20 rows=420 width=86)
+   ->  Hash  (cost=11.40..11.40 rows=140 width=520)
+         ->  Seq Scan on orders  (cost=0.00..11.40 rows=140 width=520)
+(5 rows)
+```
+
+Команда выводит план выполнения, генерируемый планировщиком.
+По каждой операции приведена стоимость запуска и общая стоимость выполнения, ожидаемое 
+количсество строк и средняя длина строки в байтах. 
+Cтроки первой таблицы записываются в хеш-таблицу в памяти, после чего сканируется вторая таблица
+и для каждой её строки проверяется соответствие по хеш-таблице
+
+### Задача 6
+Приведите список операций, который вы применяли для бэкапа данных и восстановления.
+```
+pg_dump -U netology -W test_db > /backup/test_db.bkp
+psql -U netology -W test_db < /backup/test_db.bkp
+```
