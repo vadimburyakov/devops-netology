@@ -582,3 +582,133 @@ Cтроки первой таблицы записываются в хеш-та�
 pg_dump -U netology -W test_db > /backup/test_db.bkp
 psql -U netology -W test_db < /backup/test_db.bkp
 ```
+
+# 6.3. MySQL
+### Задача 1
+Используя docker поднимите инстанс MySQL (версию 8). Данные БД сохраните в volume.
+```bash
+$ docker run --name mysql-netology -v /home/user/netology/6.3/data:/var/lib/mysql \
+-e MYSQL_ROOT_PASSWORD=net_123 -p 3306:3306 -d mysql:8
+```
+Изучите бэкап БД и восстановитесь из него.
+```bash
+$ docker exec -i mysql-netology sh -c 'exec mysql -uroot -pnet_123 test_db' < ./test_dump.sql
+```
+Перейдите в управляющую консоль mysql внутри контейнера.
+```bash
+$ docker exec -it mysql-netology mysql -u root -p
+```
+Найдите команду для выдачи статуса БД и приведите в ответе из ее вывода версию сервера БД.
+```bash
+mysql> \s
+--------------
+mysql  Ver 8.0.28 for Linux on x86_64 (MySQL Community Server - GPL)
+...
+```
+Подключитесь к восстановленной БД и получите список таблиц из этой БД.
+```bash
+mysql> use test_db
+...
+Database changed
+mysql> show tables;
++-------------------+
+| Tables_in_test_db |
++-------------------+
+| orders            |
++-------------------+
+1 row in set (0.00 sec)
+```
+Приведите в ответе количество записей с price > 300.
+```bash
+mysql> select count(*) from orders where price > 300;
++----------+
+| count(*) |
++----------+
+|        1 |
++----------+
+1 row in set (0.01 sec)
+```
+### Задача 2
+Создайте пользователя test в БД c паролем test-pass.
+```TEXT
+mysql> CREATE USER 'test'@'localhost' 
+       IDENTIFIED WITH mysql_native_password BY 'test-pass'
+       WITH MAX_QUERIES_PER_HOUR 100
+       PASSWORD EXPIRE INTERVAL 180 DAY
+       FAILED_LOGIN_ATTEMPTS 3 PASSWORD_LOCK_TIME 2
+       ATTRIBUTE '{"fname":"James", "lname":"Pretty"}';
+Query OK, 0 rows affected (0.20 sec)
+```
+Предоставьте привилегии пользователю test на операции SELECT базы test_db.
+```TEXT
+mysql> grant select on test_db.* to 'test'@'localhost';
+Query OK, 0 rows affected, 1 warning (0.02 sec)
+```
+Используя таблицу INFORMATION_SCHEMA.USER_ATTRIBUTES получите данные по пользователю test
+и приведите в ответе к задаче.
+```TEXT
+mysql> select * from INFORMATION_SCHEMA.USER_ATTRIBUTES where user='test';
++------+-----------+---------------------------------------+
+| USER | HOST      | ATTRIBUTE                             |
++------+-----------+---------------------------------------+
+| test | localhost | {"fname": "James", "lname": "Pretty"} |
++------+-----------+---------------------------------------+
+1 row in set (0.00 sec)
+```
+### Задача 3
+Установите профилирование SET profiling = 1
+```TEXT
+mysql> SET profiling = 1;
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+```
+Исследуйте, какой engine используется в таблице БД test_db и приведите в ответе.
+```TEXT
+mysql> select table_schema, table_name, engine from information_schema.tables where table_schema="test_db";
++--------------+------------+--------+
+| TABLE_SCHEMA | TABLE_NAME | ENGINE |
++--------------+------------+--------+
+| test_db      | orders     | InnoDB |
++--------------+------------+--------+
+1 row in set (0.00 sec)
+
+Используется engine InnoDB
+```
+Измените engine и приведите время выполнения и запрос на изменения из профайлера в ответе.
+```TEXT
+mysql> alter table orders ENGINE = MyISAM;
+Query OK, 5 rows affected (0.20 sec)
+Records: 5  Duplicates: 0  Warnings: 0
+
+mysql> alter table orders ENGINE = InnoDB;
+Query OK, 5 rows affected (0.15 sec)
+Records: 5  Duplicates: 0  Warnings: 0
+
+mysql> SHOW PROFILES;
++----------+------------+-----------------------------------------------------------------------------------------------------+
+| Query_ID | Duration   | Query                                                                                               |
++----------+------------+-----------------------------------------------------------------------------------------------------+
+|        1 | 0.00488100 | select table_schema, table_name, engine from information_schema.tables where table_schema="test_db" |
+|        2 | 0.19980100 | alter table orders ENGINE = MyISAM                                                                  |
+|        3 | 0.15610200 | alter table orders ENGINE = InnoDB                                                                  |
++----------+------------+-----------------------------------------------------------------------------------------------------+
+3 rows in set, 1 warning (0.00 sec)
+```
+### Задача 4
+Изучите файл my.cnf в директории /etc/mysql. Измените его согласно ТЗ (движок InnoDB).
+```TEXT
+[mysqld]
+pid-file        = /var/run/mysqld/mysqld.pid
+socket          = /var/run/mysqld/mysqld.sock
+datadir         = /var/lib/mysql
+secure-file-priv= NULL
+
+# Custom config should go here
+!includedir /etc/mysql/conf.d/
+
+innodb_flush_log_at_trx_commit = 2
+innodb_file_per_table = ON
+innodb_log_buffer_size = 1M
+# 30% RAM
+innodb_buffer_pool_size = 300M
+innodb_log_file_size = 100M
+```
