@@ -712,3 +712,101 @@ innodb_log_buffer_size = 1M
 innodb_buffer_pool_size = 300M
 innodb_log_file_size = 100M
 ```
+
+# 6.4. PostgreSQL
+### Задача 1
+Используя docker поднимите инстанс PostgreSQL (версию 13).
+```yaml
+version: "3.1"
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_PASSWORD: "net_123"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    container_name: netology_psql
+    volumes:
+      - ./backup:/backup
+      - .:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+```
+```bash
+docker-compose up -d
+Creating network "64_default" with the default driver
+Creating netology_psql ... done
+```
+Подключитесь к БД PostgreSQL используя psql.
+```bash
+docker exec -it netology_psql psql -U postgres -W
+psql (13.6 (Debian 13.6-1.pgdg110+1))
+```
+Воспользуйтесь командой \? для вывода подсказки по имеющимся в psql управляющим командам.
+Найдите и приведите управляющие команды для:
+```TEXT
+- вывода списка БД: \l
+- подключения к БД: \c
+- вывода списка таблиц: \d 
+- вывода описания содержимого таблиц: \d 'table name'
+- выхода из psql: \q
+```
+### Задача 2
+Используя psql создайте БД test_database.
+```TEXT
+postgres=# create database test_database;
+CREATE DATABASE
+```
+Восстановите бэкап БД в test_database.
+```TEXT
+docker exec -it netology_psql psql -U postgres -d test_database -f backup/test_dump.sql
+```
+Подключитесь к восстановленной БД и проведите операцию ANALYZE для сбора статистики по таблице.
+```TEXT
+postgres=# \c test_database
+test_database=# analyze orders;
+ANALYZE
+```
+Используя таблицу pg_stats, найдите столбец таблицы orders с наибольшим средним значением размера элементов в байтах.
+```TEXT
+test_database=# select attname, avg_width from pg_stats where tablename = 'orders' order by avg_width desc limit 1;
+ attname | avg_width
+---------+-----------
+ title   |        16
+(1 row)
+```
+### Задача 3
+Вам предложили провести разбиение таблицы на 2 (шардировать на orders_1 - price>499 и orders_2 - price<=499).
+Предложите SQL-транзакцию для проведения данной операции.
+```TEXT
+ BEGIN;
+ CREATE TABLE orders_1 (CONSTRAINT price CHECK (price > 499)) INHERITS (orders);
+ CREATE TABLE orders_2 (CONSTRAINT price CHECK (price <= 499)) INHERITS (orders);
+ INSERT INTO orders_1 SELECT * FROM orders where price > 499;
+ INSERT INTO orders_2 SELECT * FROM orders where price <= 499;
+ COMMIT;
+```
+Можно ли было изначально исключить "ручное" разбиение при проектировании таблицы orders?
+```TEXT
+Да. Для этого нужно было при создании сделать таблицу секционированной:
+CREATE TABLE orders (     
+    id integer NOT NULL,
+    title character varying(80) NOT NULL,
+    price integer DEFAULT 0
+    ) PARTITION BY RANGE (price);
+CREATE TABLE orders_1 PARTITION OF orders FOR VALUES FROM (500) TO (MAXVALUE);
+CREATE TABLE orders_2 PARTITION OF orders FOR VALUES FROM (MINVALUE) TO (500);
+```
+### Задача 4
+Используя утилиту pg_dump создайте бекап БД test_database.
+```TEXT
+docker exec -it netology_psql bash
+root@c3a41ce95a0a:/# cd backup
+root@c3a41ce95a0a:/backup# pg_dump -U postgres -d test_database > test_dump_2.sql
+```
+Как бы вы доработали бэкап-файл, чтобы добавить уникальность значения столбца title для таблиц test_database?
+```TEXT
+ALTER TABLE orders ADD UNIQUE (title);
+ALTER TABLE orders_1 ADD UNIQUE (title);
+ALTER TABLE orders_2 ADD UNIQUE (title);
+```
