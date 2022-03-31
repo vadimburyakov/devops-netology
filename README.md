@@ -810,3 +810,220 @@ ALTER TABLE orders ADD UNIQUE (title);
 ALTER TABLE orders_1 ADD UNIQUE (title);
 ALTER TABLE orders_2 ADD UNIQUE (title);
 ```
+
+# 6.5. Elasticsearch
+### Задача 1
+Текст Dockerfile манифеста.
+```TEXT
+FROM centos:7
+
+ENV ES_DISTR="/opt/elasticsearch"
+ENV ES_HOME="${ES_DISTR}/elasticsearch-7.17.1"
+ENV ES_DATA_DIR="/var/lib/data"
+ENV ES_LOG_DIR="/var/lib/logs"
+ENV ES_BACKUP="/opt/elasticsearch/snapshots"
+ENV ES_JAVA_OPTS="-Xms512m -Xmx512m"
+
+WORKDIR "${ES_DISTR}"
+
+RUN yum install wget -y
+
+RUN yum install perl-Digest-SHA -y
+
+RUN wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.17.1-linux-x86_64.tar.gz && \
+    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.17.1-linux-x86_64.tar.gz.sha512 && \
+    shasum -a 512 -c elasticsearch-7.17.1-linux-x86_64.tar.gz.sha512 && \
+    tar -xzf elasticsearch-7.17.1-linux-x86_64.tar.gz
+
+COPY elasticsearch.yml ${ES_HOME}/config
+
+ENV ES_USER="elasticsearch"
+
+RUN useradd ${ES_USER}
+
+RUN mkdir -p "${ES_DATA_DIR}" && \
+    mkdir -p "${ES_LOG_DIR}" && \
+    mkdir -p "${ES_BACKUP}" && \
+    chown -R ${ES_USER}: "${ES_DISTR}" && \
+    chown -R ${ES_USER}: "${ES_DATA_DIR}" && \
+    chown -R ${ES_USER}: "${ES_BACKUP}" && \
+    chown -R ${ES_USER}: "${ES_LOG_DIR}"
+
+USER ${ES_USER}
+
+WORKDIR "${ES_HOME}"
+
+EXPOSE 9200
+EXPOSE 9300
+
+ENTRYPOINT ["./bin/elasticsearch"]
+```
+Конфигурационый файл elasticsearch
+```TEXT
+discovery.type: single-node
+
+cluster.name: net_elasticsearch
+
+node.name: netology_test
+
+path.data: /var/lib/data
+
+path.logs: /var/lib/logs
+
+path.repo: /opt/elasticsearch/snapshots
+
+network.host: 0.0.0.0
+```
+Cсылка на образ в репозитории dockerhub: https://hub.docker.com/repository/docker/vadimburyakov/net_elasticsearch
+
+Ответ elasticsearch на запрос пути / в json виде.
+```TEXT
+$ curl localhost:9200/
+{
+  "name" : "netology_test",
+  "cluster_name" : "net_elasticsearch",
+  "cluster_uuid" : "RTdc4HD8SJSFErtsGqs-8A",
+  "version" : {
+    "number" : "1.0.1",
+    "build_flavor" : "default",
+    "build_type" : "tar",
+    "build_hash" : "e5acb99f744433d62d6333ce45a4543dc1c8059a",
+    "build_date" : "2022-03-30T18:17:42.253567231Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.11.1",
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"
+}
+```
+### Задача 2
+```TEXT
+curl -X PUT "localhost:9200/ind-1?pretty" -H 'Content-Type: application/json' -d'
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  }
+}
+'
+...
+```
+Получите список индексов и их статусов, используя API и приведите в ответе на задание.
+```TEXT
+$ curl -X GET 'http://localhost:9200/_cat/indices?v'
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .geoip_databases YT9KrFzSQTWhr6ctc9Vuvq   1   0         41            0     39.5mb         39.5mb
+green  open   ind-1            SpGtiPgiSE-Bz25loNfCmw   1   0          0            0       226b           226b
+yellow open   ind-3            UbZphIL9T6qnRtcWegVBlQ   4   2          0            0       904b           904b
+yellow open   ind-2            z2RtvQJdQ9CNVmtmn6D2uQ   2   1          0            0       452b           452b
+```
+Получите состояние кластера elasticsearch, используя API.
+```TEXT
+curl -XGET localhost:9200/_cluster/health/?pretty=true
+{
+  "cluster_name" : "netology_elasticsearch",
+  "status" : "yellow",
+  "timed_out" : false,
+  "number_of_nodes" : 1,
+  "number_of_data_nodes" : 1,
+  "active_primary_shards" : 10,
+  "active_shards" : 10,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 10,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 50.0
+}
+```
+Как вы думаете, почему часть индексов и кластер находится в состоянии yellow?
+```TEXT
+Два индекса имеют состояние yellow, так как у них есть реплики, а учитывая, что в кластере
+всего одна нода - эти реплики некуда размещать.
+```
+```TEXT
+curl -X DELETE 'http://localhost:9200/ind-1?pretty'
+...
+```
+
+### Задача 3
+Приведите в ответе запрос API и результат вызова API для создания репозитория.
+```TEXT
+$ curl -X PUT "localhost:9200/_snapshot/netology_backup?pretty" -H 'Content-Type: application/json' -d'
+> {
+>   "type": "fs",
+>   "settings": {
+>     "location": "/opt/elasticsearch/snapshots"
+>   }
+> }
+> '
+{
+  "acknowledged" : true
+}
+```
+Создайте индекс test с 0 реплик и 1 шардом и приведите в ответе список индексов.
+```TEXT
+$ curl -X PUT "localhost:9200/test?pretty" -H 'Content-Type: application/json' -d'
+> {
+>   "settings": {
+>     "number_of_shards": 1,
+>     "number_of_replicas": 0
+>   }
+> }
+> '
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true,
+  "index" : "test"
+}
+$ curl -X GET 'http://localhost:9200/_cat/indices?v'
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .geoip_databases q1rfDFs1RJOET0PNOVh6NQ   1   0         41            0     39.5mb         39.5mb
+green  open   test             NirLU5ZTS9m64LHU0ala8g   1   0          0            0       226b           226b
+```
+Создайте snapshot состояния кластера elasticsearch.
+```TEXT
+curl -X PUT "localhost:9200/_snapshot/netology_backup/my_snapshot?wait_for_completion=true&pretty"
+```
+Приведите в ответе список файлов в директории со snapshotами.
+```TEXT
+$docker exec netology_elasticsearch ls -l /opt/elasticsearch/snapshots
+total 48
+-rw-r--r-- 1 elasticsearch elasticsearch  1423 Mar 30 19:15 index-0
+-rw-r--r-- 1 elasticsearch elasticsearch     8 Mar 30 19:15 index.latest
+drwxr-xr-x 6 elasticsearch elasticsearch  4096 Mar 30 19:15 indices
+-rw-r--r-- 1 elasticsearch elasticsearch 29277 Mar 30 19:15 meta-E6Fo2m1yRzOM_iTatPJgPA.dat
+-rw-r--r-- 1 elasticsearch elasticsearch   710 Mar 30 19:15 snap-E6Fo2m1yRzOM_iTatPJgPA.dat
+```
+Удалите индекс test и создайте индекс test-2. Приведите в ответе список индексов.
+```TEXT
+$curl -X DELETE 'http://localhost:9200/test?pretty'
+{
+  "acknowledged" : true
+}
+$ curl -X PUT "localhost:9200/test-2?pretty" -H 'Content-Type: application/json' -d'
+$ curl -X GET 'http://localhost:9200/_cat/indices?v'
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .geoip_databases q1rfDFs1RJOET0PNOVh6NQ   1   0         41            0     39.5mb         39.5mb
+green  open   test-2           NirLU5ZTS9m64LHU0ala8g   1   0          0            0       226b           226b
+```
+Приведите в ответе запрос к API восстановления и итоговый список индексов.
+```TEXT
+$ curl -X POST localhost:9200/_snapshot/netology_backup/my_snapshot/_restore?pretty -H 'Content-Type: application/json' -d'                              
+> {
+>   "indices": "test",
+>   "include_global_state":true
+> }
+> '
+{
+  "accepted" : true
+}
+$ curl -X GET 'http://localhost:9200/_cat/indices?v'
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .geoip_databases 7YcC_R1UQTatrVoRc9K6lA   1   0         41            0     39.5mb         39.5mb
+green  open   test-2           6qSRrJBSwq_nmcHSIxzMuw   1   0          0            0       226b           226b
+green  open   test             q2BunjXoQJSVmvKoZLlNTw   1   0          0            0       226b           226b
+```
