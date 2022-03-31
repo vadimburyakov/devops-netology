@@ -874,7 +874,7 @@ path.repo: /opt/elasticsearch/snapshots
 
 network.host: 0.0.0.0
 ```
-Cсылка на образ в репозитории dockerhub: https://hub.docker.com/repository/docker/vadimburyakov/net_elasticsearch
+Cсылка на образ в репозитории dockerhub: https://hub.docker.com/r/vadimburyakov/net_elasticsearch
 
 Ответ elasticsearch на запрос пути / в json виде.
 ```TEXT
