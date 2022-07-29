@@ -1123,3 +1123,153 @@ vagrant@vagrant:~$ terraform_011 --version
 Terraform v1.0.11
 on linux_amd64
 ```
+
+# Курсовая работа по итогам модуля "DevOps и системное администрирование".
+
+### Процесс установки и настройки ufw.
+```bash
+vagrant@vagrant:~$ sudo apt install ufw
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+ufw is already the newest version (0.36-6).
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+vagrant@vagrant:~$ sudo ufw status
+Status: inactive
+vagrant@vagrant:~$ sudo ufw default deny incoming
+Default incoming policy changed to 'deny'
+(be sure to update your rules accordingly)
+vagrant@vagrant:~$ sudo ufw default allow outgoing
+Default outgoing policy changed to 'allow'
+(be sure to update your rules accordingly)
+vagrant@vagrant:~$ sudo ufw allow 22
+Rules updated
+Rules updated (v6)
+vagrant@vagrant:~$ sudo ufw allow 443
+Rules updated
+Rules updated (v6)
+vagrant@vagrant:~$ sudo ufw allow in on lo
+vagrant@vagrant:~$ sudo ufw enable
+Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
+Firewall is active and enabled on system startup
+vagrant@vagrant:~$ sudo ufw status
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22                         ALLOW       Anywhere                  
+443                        ALLOW       Anywhere                  
+Anywhere on lo             ALLOW       Anywhere                                   
+22 (v6)                    ALLOW       Anywhere (v6)             
+443 (v6)                   ALLOW       Anywhere (v6)             
+Anywhere (v6) on lo        ALLOW       Anywhere (v6)                          
+```
+### Процесс установки и выпуска сертификата с помощью hashicorp vault
+#### Установка vault:
+```bash
+vagrant@vagrant:~$ curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+OK
+vagrant@vagrant:~$ sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+...
+vagrant@vagrant:~$ sudo apt-get update && sudo apt-get install vault
+...
+vagrant@vagrant:~$ vault
+Usage: vault <command> [args]
+
+Common commands:
+    read        Read data and retrieves secrets
+    write       Write data, configuration, and secrets
+...
+vagrant@vagrant:~$ sudo apt-get install jq
+```
+#### Выпуск сертификата:
+```bash
+root@vagrant:/home/vagrant# vault server -dev -dev-root-token-id root &
+...
+root@vagrant:/home/vagrant# export VAULT_ADDR='http://127.0.0.1:8200'
+root@vagrant:/home/vagrant# export VAULT_TOKEN=root
+root@vagrant:/home/vagrant# vault secrets enable pki
+Success! Enabled the pki secrets engine at: pki/
+root@vagrant:/home/vagrant# vault secrets tune -max-lease-ttl=87600h pki
+Success! Tuned the secrets engine at: pki/
+root@vagrant:/home/vagrant# vault write -field=certificate pki/root/generate/internal common_name="mycert_ca" ttl=87600h > mycert_ca_cert.crt
+root@vagrant:/home/vagrant# ls
+mycert_ca_cert.crt
+root@vagrant:/home/vagrant# vault write pki/config/urls issuing_certificates="$VAULT_ADDR/v1/pki/ca" crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
+Success! Data written to: pki/config/urls
+root@vagrant:/home/vagrant# vault write pki/roles/example-cert allowed_domains="example" allow_subdomains=true max_ttl="720h"
+Success! Data written to: pki/roles/example-cert
+root@vagrant:/home/vagrant# vault write pki/issue/example-cert common_name="serv01.example" ttl="720h"
+Key                 Value
+---                 -----
+certificate         -----BEGIN CERTIFICATE-----
+MIIDuTCCAqGgAwIBAgIUCLolvKky+KPis2yw96B1aZrKHgMwDQYJKoZIhvcNAQEL
+...
+-----END CERTIFICATE-----
+expiration          1643812779
+issuing_ca          -----BEGIN CERTIFICATE-----
+MIIDGTCCAgGgAwIBAgIUZKjQ2vhTuMpU72+k575JdvTuvhEwDQYJKoZIhvcNAQEL
+...
+-----END CERTIFICATE-----
+private_key         -----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEAuSNa0G5ZTShrYbWUl94kfqdlGRAY33dCjRel/kAulIyYIs+5
+...
+-----END RSA PRIVATE KEY-----
+private_key_type    rsa
+serial_number       08:ba:25:bc:a9:32:f8:a3:e2:b3:6c:b0:f7:a0:75:69:9a:ca:1e:03
+```
+Сертификат и ключ сохранены в файлах: `/etc/nginx/serv01.example.crt`, `/etc/nginx/serv01.example.key`. 
+#### Kорневой сертификат созданного центра сертификации установлен в доверенные в хостовой системе.
+![](screenshots/curs1.png)
+### Процесс установки и настройки сервера nginx.
+#### Установка
+```bash
+vagrant@vagrant:~$ sudo apt install nginx
+...
+vagrant@vagrant:~$ systemctl status nginx
+```
+![](screenshots/curs2.png)
+#### Настройка
+Файл конфигурации `/etc/nginx/sites-available/default` настроен следующим образом:
+![](screenshots/curs3.png)
+
+### Страница сервера nginx в браузере хоста не содержит предупреждений
+![](screenshots/curs4.png)
+
+### Скрипт генерации нового сертификата работает (сертификат сервера ngnix должен быть "зеленым")
+
+#### Скрипт генерации сертификата и рестарта nginx.
+```bash
+root@vagrant:/home/vagrant# nano /home/vagrant/script_cert.py
+======================
+#!/usr/bin/env python3
+
+import json
+import os
+
+#issuing new certs
+os.popen('vault write -format=json pki/issue/example-cert common_name="serv01.example" ttl="750h" > /home/vagrant/certificates.json')
+
+#writing new cert and key into files
+with open("/home/vagrant/certificates.json", "r") as read_file:
+    json_dict_certs = json.load(read_file)
+
+with open("/etc/nginx/serv01.example.crt", "w") as crt_file:
+    crt_file.write(json_dict_certs['data']['certificate'])
+
+with open("/etc/nginx/serv01.example.key", "w") as key_file:
+    key_file.write(json_dict_certs['data']['private_key'])
+
+#restarting nginx
+os.popen('systemctl restart nginx')
+```
+Скрипт работает: запрашивает новый сертификат, записывает его в файл `json`, парсит этот файл, перезаписывает файлы сертификата `/etc/nginx/serv01.example.crt` и ключа `/etc/nginx/serv01.example.key`, и рестартит nginx (результат работы см. в след. пункте). 
+### Crontab работает (выберите число и время так, чтобы показать что crontab запускается и делает что надо)
+#### Crontab настроен на запуск вышеуказанного скрипта в 7:54(+3:00), 28-го числа каждого месяца.
+![](screenshots/curs5.png)
+#### После запуска скрипта в 7:54(+3:00), 28.07.2022 файлы `/etc/nginx/serv01.example.crt` и `/etc/nginx/serv01.example.key` обновились,
+![](screenshots/curs6.png)
+#### nginx рестартовал,
+![](screenshots/curs7.png)
+#### страница сервера nginx в браузере хоста не содержит предупреждений.
+![](screenshots/curs8.png)
