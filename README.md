@@ -1,3 +1,109 @@
+# 7.2. Облачные провайдеры и синтаксис Terraform.
+### Задача 2. Создание yandex_compute_instance через терраформ.
+В качестве образа виртуальной машины можно использовать стандартный образ из списка Yandex.Cloud.
+
+Также необходимо создать файл с ключами для IAM-аккаунта key.json:
+```yc iam key create --service-account-name netology-account --output key.json```
+#### 1. При помощи какого инструмента (из разобранных на прошлом занятии) можно создать свой образ ami?
+```С помощью инструмента Packer можно создать свой базовый образ операционной системы и отправить его в облако```
+#### 2. Ссылка на репозиторий с исходной конфигурацией терраформа.
+https://github.com/vadimburyakov/devops-netology/tree/main/terraform
+#### versions.tf - описание необходимых провайдеров terraform
+#### main.tf - настройка провайдера и описание инстанса, который нужно создать
+#### network.tf - описание сети и подсети, которые нужно создать
+#### output.tf - описание вывода после выполнения
+
+# 7.5. Основы golang
+### Задача 1. Установите golang.
+```commandline
+~$ go version
+go version go1.19 linux/amd64
+```
+### Задача 2. Знакомство с gotour.
+
+Сделано
+
+### Задача 3. Написание кода.
+#### 1. Напишите программу для перевода метров в футы (1 фут = 0.3048 метр). 
+```Text
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Print("Enter a number in meters: ")
+	var input float64
+	fmt.Scanf("%f", &input)
+	result := MetertoFoot(input)
+	fmt.Println(result)
+}
+
+func MetertoFoot(input float64) float64 {
+ return input / 0.3048
+}
+```
+#### 2. Напишите программу, которая найдет наименьший элемент в любом заданном списке.
+```text
+package main
+
+import "fmt"
+
+func main() {
+        x := []int{35, 71, 94, 63, 72, 8, 542, 81, 16, 104, 93, 22, 861, 24, 189}
+        min := MinEl(x)
+        fmt.Printf("Наименьший элемент в списке: %d\n", min)
+}
+
+func MinEl(array []int) int {
+        min := array[0]
+        for _, v := range array {
+                if v < min {
+                        min = v
+                }
+        }
+        return min
+}
+```
+#### 3. Напишите программу, которая выводит числа от 1 до 100, которые делятся на 3.
+```text
+package main
+
+import "fmt"
+
+func main() {
+    result := choose()
+    fmt.Printf("%v\n", result)
+}
+
+func choose() []int {
+        var res []int
+        for i := 1; i < 100; i++ {
+                if i % 3 == 0 {
+                      res = append(res, i)
+                }
+        }
+        return res
+}
+```
+
+# 7.6. Написание собственных провайдеров для Terraform.
+### Задача 1.
+#### 1. Найдите, где перечислены все доступные resource и data_source, приложите ссылку на эти строки в коде на гитхабе.
+resource
+https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/provider/provider.go#L913
+data_source
+https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/provider/provider.go#L413
+#### 2. Для создания очереди сообщений SQS используется ресурс aws_sqs_queue у которого есть параметр name.
+#### С каким другим параметром конфликтует name? Приложите строчку кода, в которой это указано.
+`name` конфликтует с `name_prefix`: https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/sqs/queue.go#L87
+#### Какая максимальная длина имени?
+80 символов (причем, для fifo очереди - 75 символов плюс расширение `.fifo`, в итоге - 80 символов.) 
+
+https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/sqs/queue.go#L424
+#### Какому регулярному выражению должно подчиняться имя?
+`^[a-zA-Z0-9_-]{1,75}\.fifo$` - для fifo очереди
+`^[a-zA-Z0-9_-]{1,80}$` - для других очередей
+
 # 09.01 Жизненный цикл ПО
 ### В рамках основной части необходимо создать собственные workflow для двух типов задач: bug и остальные типы задач.
 #### Workflow for bug
